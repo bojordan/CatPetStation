@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build CatPetStation.slnx --configuration Release
+
+      - name: Test
+        run: dotnet test tests/CatPetStation.Core.Tests --configuration Release --no-build --logger "console;verbosity=normal"
+
+      - name: Verify sprite sheet is reproducible
+        shell: pwsh
+        run: |
+          $before = (Get-FileHash assets/pets/station-cat/cat.png).Hash
+          dotnet run --project tools/SpriteGen --configuration Release
+          $after = (Get-FileHash assets/pets/station-cat/cat.png).Hash
+          if ($before -ne $after) {
+            Write-Error "assets/pets/station-cat is stale: re-run 'dotnet run --project tools/SpriteGen' and commit."
+          }
+
+  release-build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-and-test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish self-contained single file
+        run: >
+          dotnet publish src/CatPetStation.App -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath CatPetStation-win-x64.zip
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: CatPetStation-win-x64.zip
+          generate_release_notes: true

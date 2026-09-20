@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CatPetStation</title>
+<meta name="description" content="Open-source desktop pets that are safe by design. MIT-licensed, no network, no telemetry — assets are data, never code.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFF6E9;
+    --bg-2: #FFEBD0;
+    --ink: #3D2B1F;
+    --ink-soft: #6E584A;
+    --card: #FFFFFF;
+    --accent: #E8792E;
+    --accent-ink: #FFFFFF;
+    --line: #E8D5BC;
+    --code-bg: #34281E;
+    --code-ink: #FFE9C7;
+    --shadow: 0 6px 24px rgba(61, 43, 31, .10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #221A13;
+      --bg-2: #2C2118;
+      --ink: #FFEDD6;
+      --ink-soft: #C7AB90;
+      --card: #2F251B;
+      --accent: #F49E4C;
+      --accent-ink: #2A1C0E;
+      --line: #433527;
+      --code-bg: #1A140E;
+      --code-ink: #FFE9C7;
+      --shadow: 0 6px 24px rgba(0, 0, 0, .35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #221A13;
+    --bg-2: #2C2118;
+    --ink: #FFEDD6;
+    --ink-soft: #C7AB90;
+    --card: #2F251B;
+    --accent: #F49E4C;
+    --accent-ink: #2A1C0E;
+    --line: #433527;
+    --code-bg: #1A140E;
+    --code-ink: #FFE9C7;
+    --shadow: 0 6px 24px rgba(0, 0, 0, .35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Nunito", system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+
+  header {
+    background: linear-gradient(180deg, var(--bg-2), var(--bg));
+    padding: 64px 0 48px;
+    text-align: center;
+    border-bottom: 1px solid var(--line);
+  }
+  .cat-stage {
+    height: 132px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    overflow: hidden;
+  }
+  .cat {
+    width: 128px; height: 128px;
+    background: url("assets/cat.png") no-repeat;
+    background-position: 0 -128px;         /* walk row */
+    image-rendering: pixelated;
+    animation:
+      walk-frames .55s steps(4) infinite,
+      pace 14s ease-in-out infinite alternate;
+  }
+  @keyframes walk-frames { from { background-position-x: 0; } to { background-position-x: -512px; } }
+  @keyframes pace {
+    0%   { transform: translateX(-160px) scaleX(1); }
+    49%  { transform: translateX(160px)  scaleX(1); }
+    50%  { transform: translateX(160px)  scaleX(-1); }
+    99%  { transform: translateX(-160px) scaleX(-1); }
+    100% { transform: translateX(-160px) scaleX(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cat { animation: none; background-position: 0 0; }
+  }
+
+  h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); font-weight: 900; margin: 16px 0 8px; }
+  .tagline { font-size: 1.25rem; color: var(--ink-soft); margin: 0 auto 28px; max-width: 620px; }
+  .buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 13px 26px; border-radius: 999px;
+    font-weight: 900; text-decoration: none; font-size: 1.05rem;
+    transition: transform .12s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
+  .btn-ghost { border: 2px solid var(--accent); color: var(--accent); }
+  .sub { margin-top: 14px; font-size: .9rem; color: var(--ink-soft); }
+
+  section { padding: 56px 0 8px; }
+  h2 { font-size: 1.8rem; font-weight: 900; margin: 0 0 6px; }
+  .lede { color: var(--ink-soft); margin: 0 0 28px; max-width: 640px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 22px; box-shadow: var(--shadow);
+  }
+  .card h3 { margin: 0 0 8px; font-size: 1.1rem; }
+  .card p { margin: 0; color: var(--ink-soft); font-size: .97rem; }
+  .card .emoji { font-size: 1.6rem; display: block; margin-bottom: 10px; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: center; }
+  @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+  pre {
+    background: var(--code-bg); color: var(--code-ink);
+    border-radius: 14px; padding: 20px; overflow-x: auto;
+    font-size: .85rem; line-height: 1.5; box-shadow: var(--shadow);
+  }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .inline-code {
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: 6px; padding: 1px 7px; font-size: .9em;
+  }
+
+  .shield-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .shield-list li {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 18px; display: flex; gap: 12px; align-items: baseline;
+  }
+  .shield-list b { white-space: nowrap; }
+  .shield-list span { color: var(--ink-soft); font-size: .95rem; }
+
+  footer {
+    margin-top: 64px; padding: 36px 0 48px; border-top: 1px solid var(--line);
+    text-align: center; color: var(--ink-soft); font-size: .95rem;
+  }
+  footer a { color: var(--accent); font-weight: 700; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="cat-stage"><div class="cat" role="img" aria-label="Station Cat, a pixel-art orange cat, walking"></div></div>
+    <h1>CatPetStation</h1>
+    <p class="tagline">Open-source desktop pets that are <strong>safe by design</strong>.
+    A little cat that walks, climbs, naps, and gets flung across your screen — without ever running untrusted code.</p>
+    <div class="buttons">
+      <a class="btn btn-primary" href="https://github.com/YOUR-USER/CatPetStation/releases/latest">Download for Windows</a>
+      <a class="btn btn-ghost" href="https://github.com/YOUR-USER/CatPetStation">View on GitHub</a>
+    </div>
+    <p class="sub">MIT licensed · No network · No telemetry · .NET 10 + WPF · macOS port planned</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>A pet, not a program-in-disguise</h2>
+    <p class="lede">Meet <strong>Station Cat</strong> — drawn entirely from ASCII pixel grids in the repo, so even the art is reviewable, reproducible, and unambiguously MIT.</p>
+    <div class="grid">
+      <div class="card"><span class="emoji">🚶</span><h3>A full little life</h3><p>Idles, strolls, climbs the sides of your screen, hangs from the top, leaps, and falls with proper gravity and a squash landing.</p></div>
+      <div class="card"><span class="emoji">🖱️</span><h3>Pick up &amp; fling</h3><p>Grab a pet with the mouse and toss it — smoothed fling physics carries it across the desktop before it lands on its feet.</p></div>
+      <div class="card"><span class="emoji">🐈‍⬛</span><h3>A whole clowder</h3><p>Run as many pets as you like, in four sizes from Small to Chonk, all managed from one tray icon.</p></div>
+      <div class="card"><span class="emoji">😴</span><h3>A good citizen</h3><p>Never steals focus, never appears in Alt+Tab, naps at 2 fps on request, and runs without admin rights.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap split">
+    <div>
+      <h2>Pets are pictures + JSON. Full stop.</h2>
+      <p class="lede">A pet pack is one PNG sprite sheet and one manifest. There is no plugin system and no scripting — not as an option that's off, but as a thing that doesn't exist. Packs made for the delisted <em>DPET : Desktop Pet Engine</em> import unchanged.</p>
+      <p><a class="btn btn-ghost" href="https://github.com/YOUR-USER/CatPetStation/blob/main/docs/ASSET-PACKS.md">Make your own pet →</a></p>
+    </div>
+    <pre><code>{
+  "name": "Station Cat",
+  "spriteSheet": "cat.png",
+  "frameWidth": 128,
+  "frameHeight": 128,
+  "animations": {
+    "stand": { "row": 0, "frames": 4 },
+    "walk":  { "row": 1, "frames": 4 },
+    "climb": { "row": 2, "frames": 2 },
+    "fall":  { "row": 5, "frames": 3 }
+  }
+}</code></pre>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Built for the zips people actually share</h2>
+    <p class="lede">Desktop pet assets travel as zip dumps on Reddit and Discord — and some of those zips carry more than sprites. CatPetStation's importer assumes every archive is hostile:</p>
+    <ul class="shield-list">
+      <li><b>Allowlist extraction</b><span>only verified .png and .json ever leave the archive — executables, scripts, and shortcuts are skipped and reported to you.</span></li>
+      <li><b>Zip-slip proof</b><span>archive paths are never used; content is written to file names the app generates itself.</span></li>
+      <li><b>Bomb guards</b><span>entry counts, per-file and total size caps, and declared-length verification stop decompression bombs.</span></li>
+      <li><b>No disguises</b><span>PNG magic bytes are checked, manifests must fully validate, and Windows tricks like alternate data streams are refused.</span></li>
+    </ul>
+    <p style="margin-top:20px"><a href="https://github.com/YOUR-USER/CatPetStation/blob/main/docs/SAFE-IMPORT.md">Read the safe-import guide</a> — including how to handle community asset dumps before they ever reach an importer.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Get started in one line</h2>
+    <pre><code># with the .NET 10 SDK installed
+git clone https://github.com/YOUR-USER/CatPetStation && cd CatPetStation
+dotnet run --project src/CatPetStation.App</code></pre>
+    <p class="lede" style="margin-top:16px">Or grab the self-contained build from the <a href="https://github.com/YOUR-USER/CatPetStation/releases/latest">latest release</a> — no runtime install needed.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>CatPetStation is <a href="https://github.com/YOUR-USER/CatPetStation/blob/main/LICENSE">MIT licensed</a> — code and cat alike.<br>
+    Built in the open, documented end-to-end in the <a href="https://github.com/YOUR-USER/CatPetStation/blob/main/docs/DEVLOG.md">devlog</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>
