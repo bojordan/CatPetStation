@@ -11,7 +11,9 @@
     <AssemblyName>CatPetStation</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Version>0.1.0</Version>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Do NOT enable InvariantGlobalization: WPF's control templates resolve
+         xml:lang to a specific culture and crash without culture data
+         (first seen as an instant crash when opening a pet's context menu). -->
   </PropertyGroup>
 
   <!-- Built-in pet packs ship next to the executable, read-only. -->
