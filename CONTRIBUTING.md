@@ -18,7 +18,7 @@ the MIT license.
 ## Getting set up
 
 ```bash
-git clone https://github.com/YOUR-USER/CatPetStation.git
+git clone https://github.com/bojordan/CatPetStation.git
 cd CatPetStation
 dotnet test                                   # 35 tests, all green
 dotnet run --project src/CatPetStation.App    # meet Station Cat

@@ -41,7 +41,7 @@ be the *good citizen* of this space:
 Requires Windows 10/11. Build from source (needs the [.NET 10 SDK](https://dotnet.microsoft.com/download)):
 
 ```bash
-git clone https://github.com/YOUR-USER/CatPetStation.git
+git clone https://github.com/bojordan/CatPetStation.git
 cd CatPetStation
 dotnet run --project src/CatPetStation.App
 ```
