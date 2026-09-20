@@ -106,7 +106,23 @@ standable surfaces. Design notes:
   The macOS port must make it opt-in: reading other apps' window geometry
   there requires the Screen Recording permission prompt.
 
-## 5. What's deliberately left for contributors
+## 5. Coats: one set of poses, four cats
+
+Dusty (grey tabby), Domino (tuxedo), and Patches (calico) reuse Station Cat's
+poses. A `Coat` is a palette swap plus an optional positional patch rule
+evaluated in each pose's bounding-box coordinates — Domino's white socks are
+"coat pixels with ny > 0.86", Patches' orange/black markings are vertical
+bands over the upper 45 %. Two details mattered:
+
+- Colorizing happens **before** derivation transforms (the crawl is a vertical
+  flip of the walk), so markings stay attached to the body when a pose flips.
+- Bounding-box coordinates, not cell coordinates, keep markings from sliding
+  around as poses change size between animations.
+
+CI's reproducibility check now hashes every file under `assets/pets`, and the
+refactor was verified to leave `station-cat/cat.png` byte-identical.
+
+## 6. What's deliberately left for contributors
 
 - Multi-monitor roaming (engine already takes arbitrary bounds; the host just
   passes one work area today).

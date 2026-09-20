@@ -1,7 +1,9 @@
-// SpriteGen — generates the built-in "Station Cat" sprite sheet and manifest.
+// SpriteGen — generates the built-in cat sprite sheets and manifests.
 //
-// The art is defined as ASCII pixel grids right here in source, so the whole
-// pet is reproducible, reviewable in a diff, and unambiguously MIT-licensed.
+// The art is defined as ASCII pixel grids right here in source, so every pet
+// is reproducible, reviewable in a diff, and unambiguously MIT-licensed. All
+// cats share the same poses; each Coat recolors them (palette swap plus an
+// optional positional patch rule — see CatArt.Coats).
 // Run from the repo root:  dotnet run --project tools/SpriteGen
 //
 // Grid conventions: each pose is a list of 32-char rows (short rows are padded).
@@ -13,13 +15,15 @@ using System.IO;
 using SpriteGen;
 
 var repoRoot = FindRepoRoot();
-var outDir = Path.Combine(repoRoot, "assets", "pets", "station-cat");
-Directory.CreateDirectory(outDir);
 
-var sheet = CatArt.BuildSheet();
-SheetWriter.WritePng(sheet, Path.Combine(outDir, "cat.png"));
-File.WriteAllText(Path.Combine(outDir, "pet.json"), CatArt.Manifest);
-Console.WriteLine($"Wrote {Path.Combine(outDir, "cat.png")} and pet.json");
+foreach (var coat in CatArt.Coats)
+{
+    var outDir = Path.Combine(repoRoot, "assets", "pets", coat.Directory);
+    Directory.CreateDirectory(outDir);
+    SheetWriter.WritePng(CatArt.BuildSheet(coat), Path.Combine(outDir, "cat.png"));
+    File.WriteAllText(Path.Combine(outDir, "pet.json"), CatArt.ManifestFor(coat));
+    Console.WriteLine($"Wrote {coat.PetName,-12} -> {outDir}");
+}
 
 static string FindRepoRoot()
 {

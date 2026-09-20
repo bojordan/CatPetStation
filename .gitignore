@@ -1,5 +1,8 @@
 bin/
 obj/
+
+# Local-only third-party assets (never commit: possible unlicensed IP)
+external/
 *.user
 .vs/
 TestResults/

@@ -12,7 +12,19 @@ public static class CatArt
     public const int Scale = 4;    // output pixels per logical pixel
     public const int Frame = Cell * Scale;
 
-    private static readonly Dictionary<char, uint> Palette = new()
+    /// <summary>
+    /// The same poses render as different cats by swapping the palette and,
+    /// optionally, applying a positional patch rule to coat pixels ('b'/'s').
+    /// The rule receives (nx, ny), the pixel's position inside the pose's
+    /// bounding box (0..1), so markings track the body across poses.
+    /// </summary>
+    public sealed record Coat(
+        string PetName,
+        string Directory,
+        IReadOnlyDictionary<char, uint> Palette,
+        Func<double, double, uint?>? Patch = null);
+
+    private static readonly Dictionary<char, uint> OrangePalette = new()
     {
         ['O'] = 0xFF4A3123, // dark brown outline
         ['b'] = 0xFFF49E4C, // orange coat
@@ -23,6 +35,49 @@ public static class CatArt
         ['k'] = 0xFF26211E, // pupil
         ['w'] = 0xFFFFFFFF, // highlight
     };
+
+    private static readonly Dictionary<char, uint> GreyPalette = new()
+    {
+        ['O'] = 0xFF383D44, ['b'] = 0xFF98A2AC, ['s'] = 0xFF6B7580,
+        ['c'] = 0xFFEDEFF2, ['p'] = 0xFFF2A5AE, ['e'] = 0xFFD9A23F,
+        ['k'] = 0xFF26211E, ['w'] = 0xFFFFFFFF,
+    };
+
+    private static readonly Dictionary<char, uint> TuxedoPalette = new()
+    {
+        ['O'] = 0xFF171412, ['b'] = 0xFF322D2A, ['s'] = 0xFF3E3835,
+        ['c'] = 0xFFFFFFFF, ['p'] = 0xFFF2A5AE, ['e'] = 0xFF57A63F,
+        ['k'] = 0xFF000000, ['w'] = 0xFFFFFFFF,
+    };
+
+    private static readonly Dictionary<char, uint> CalicoPalette = new()
+    {
+        ['O'] = 0xFF4A3123, ['b'] = 0xFFF7F3EC, ['s'] = 0xFFE9E0D2,
+        ['c'] = 0xFFFFFFFF, ['p'] = 0xFFF2A5AE, ['e'] = 0xFFD9A23F,
+        ['k'] = 0xFF26211E, ['w'] = 0xFFFFFFFF,
+    };
+
+    private const uint CalicoOrange = 0xFFF49E4C;
+    private const uint CalicoBlack = 0xFF3B332C;
+
+    public static readonly Coat[] Coats =
+    [
+        new("Station Cat", "station-cat", OrangePalette),
+        new("Dusty", "dusty", GreyPalette),
+        // Tuxedo: white socks on the bottom ~14 % of every pose.
+        new("Domino", "domino", TuxedoPalette,
+            (nx, ny) => ny > 0.86 ? 0xFFFFFFFF : null),
+        // Calico: orange/black patches over the upper body, white below.
+        new("Patches", "patches", CalicoPalette,
+            (nx, ny) => ny < 0.45
+                ? Math.Min(4, (int)(nx * 5)) switch
+                {
+                    0 or 3 => CalicoOrange,
+                    2 or 4 => CalicoBlack,
+                    _ => null,
+                }
+                : null),
+    ];
 
     // ---- Poses ------------------------------------------------------------
 
@@ -242,23 +297,37 @@ public static class CatArt
 
     // ---- Sheet layout -----------------------------------------------------
 
-    /// <summary>Animation rows in sheet order. Must match <see cref="Manifest"/>.</summary>
-    public static PixelGrid BuildSheet()
+    /// <summary>Animation rows in sheet order. Must match the manifest.</summary>
+    public static PixelGrid BuildSheet(Coat coat)
     {
-        var blink = SitTailDown
+        var blinkPose = SitTailDown
             .Select(r => r.Replace('e', 'O').Replace('k', 'O'))
             .ToArray();
 
-        string[][][] rows =
+        // Coloring happens in the pose's natural orientation, so coat markings
+        // stay attached to the body even in flipped derivations like the crawl.
+        var sit = Colorize(SitTailDown, coat);
+        var sitUp = Colorize(SitTailUp, coat);
+        var blink = Colorize(blinkPose, coat);
+        var walkA = Colorize(WalkA, coat);
+        var walkB = Colorize(WalkB, coat);
+        var walkC = Colorize(WalkC, coat);
+        var climb = Colorize(ClimbA, coat);
+        var leap = Colorize(Leap, coat);
+        var squash = Colorize(LandSquash, coat);
+        var drag = Colorize(DragA, coat);
+        var sleep = Colorize(Sleep, coat);
+
+        uint?[][][,] rows =
         [
-            [SitTailDown, SitTailUp, SitTailDown, blink],          // stand
-            [WalkA, WalkB, WalkC, WalkB],                          // walk
-            [ClimbA, HFlip(ClimbA)],                               // climb
-            [VFlip(WalkA), VFlip(WalkC)],                          // crawl (hanging)
-            [Leap, WalkB],                                         // jump
-            [Leap, LandSquash, SitTailDown],                       // fall: airborne, squash, recover
-            [DragA, ShiftLowerHalf(DragA, 1)],                     // drag
-            [Sleep, DropTopRow(Sleep)],                            // sleep (breathing)
+            [sit, sitUp, sit, blink],                              // stand
+            [walkA, walkB, walkC, walkB],                          // walk
+            [climb, HFlip(climb)],                                 // climb
+            [VFlip(walkA), VFlip(walkC)],                          // crawl (hanging)
+            [leap, walkB],                                         // jump
+            [leap, squash, sit],                                   // fall: airborne, squash, recover
+            [drag, ShiftLowerHalf(drag, 1)],                       // drag
+            [sleep, DropTopRow(sleep)],                            // sleep (breathing)
         ];
 
         var maxFrames = rows.Max(r => r.Length);
@@ -275,10 +344,10 @@ public static class CatArt
         return sheet;
     }
 
-    public const string Manifest = """
+    public static string ManifestFor(Coat coat) => """
         {
           "format": "catpetstation/1",
-          "name": "Station Cat",
+          "name": "PET_NAME",
           "spriteSheet": "cat.png",
           "frameWidth": 128,
           "frameHeight": 128,
@@ -295,19 +364,52 @@ public static class CatArt
             "sleep": { "row": 7, "frames": 2, "fps": 1.2 }
           }
         }
-        """;
+        """.Replace("PET_NAME", coat.PetName);
 
     // ---- Grid helpers -----------------------------------------------------
 
-    private static void Blit(PixelGrid sheet, string[] pose, int cellX, int cellY, bool anchorTop)
+    /// <summary>Resolves a pose's characters to colors for one coat: palette
+    /// lookup, then the coat's positional patch rule for coat pixels.</summary>
+    private static uint?[,] Colorize(string[] pose, Coat coat)
     {
-        var yOffset = anchorTop ? 0 : Cell - pose.Length;
-        for (var py = 0; py < pose.Length; py++)
+        // Bounding box of the drawn pixels, for patch-rule coordinates.
+        int minX = Cell, maxX = 0, minY = pose.Length, maxY = 0;
+        for (var y = 0; y < pose.Length; y++)
+            for (var x = 0; x < Math.Min(pose[y].Length, Cell); x++)
+                if (coat.Palette.ContainsKey(pose[y][x]))
+                {
+                    minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
+                    minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+                }
+
+        var grid = new uint?[pose.Length, Cell];
+        for (var y = 0; y < pose.Length; y++)
         {
-            var line = pose[py];
-            for (var px = 0; px < Math.Min(line.Length, Cell); px++)
+            var line = pose[y];
+            for (var x = 0; x < Math.Min(line.Length, Cell); x++)
             {
-                if (!Palette.TryGetValue(line[px], out var color)) continue;
+                var c = line[x];
+                if (!coat.Palette.TryGetValue(c, out var color)) continue;
+                if (coat.Patch is not null && c is 'b' or 's')
+                {
+                    var nx = (x - minX) / (double)Math.Max(1, maxX - minX);
+                    var ny = (y - minY) / (double)Math.Max(1, maxY - minY);
+                    color = coat.Patch(nx, ny) ?? color;
+                }
+                grid[y, x] = color;
+            }
+        }
+        return grid;
+    }
+
+    private static void Blit(PixelGrid sheet, uint?[,] pose, int cellX, int cellY, bool anchorTop)
+    {
+        var rows = pose.GetLength(0);
+        var yOffset = anchorTop ? 0 : Cell - rows;
+        for (var py = 0; py < rows; py++)
+            for (var px = 0; px < Cell; px++)
+            {
+                if (pose[py, px] is not { } color) continue;
                 for (var sy = 0; sy < Scale; sy++)
                     for (var sx = 0; sx < Scale; sx++)
                         sheet.Set(
@@ -315,20 +417,33 @@ public static class CatArt
                             cellY + (yOffset + py) * Scale + sy,
                             color);
             }
-        }
     }
 
-    private static string[] HFlip(string[] pose) =>
-        pose.Select(r => new string(r.PadRight(Cell, '.').Reverse().ToArray())).ToArray();
+    private static uint?[,] HFlip(uint?[,] pose) =>
+        Transform(pose, 0, (g, y, x) => g[y, Cell - 1 - x]);
 
-    private static string[] VFlip(string[] pose) => pose.Reverse().ToArray();
+    private static uint?[,] VFlip(uint?[,] pose) =>
+        Transform(pose, 0, (g, y, x) => g[pose.GetLength(0) - 1 - y, x]);
 
-    private static string[] DropTopRow(string[] pose) => pose.Skip(1).ToArray();
+    private static uint?[,] DropTopRow(uint?[,] pose) =>
+        Transform(pose, -1, (g, y, x) => g[y + 1, x]);
 
-    private static string[] ShiftLowerHalf(string[] pose, int dx)
+    private static uint?[,] ShiftLowerHalf(uint?[,] pose, int dx)
     {
-        var from = pose.Length / 2;
-        return pose.Select((r, i) =>
-            i < from ? r : new string('.', dx) + r).ToArray();
+        var from = pose.GetLength(0) / 2;
+        return Transform(pose, 0, (g, y, x) =>
+            y < from ? g[y, x]
+            : x - dx >= 0 && x - dx < Cell ? g[y, x - dx] : null);
+    }
+
+    private static uint?[,] Transform(
+        uint?[,] pose, int rowDelta, Func<uint?[,], int, int, uint?> source)
+    {
+        var rows = pose.GetLength(0) + rowDelta;
+        var result = new uint?[rows, Cell];
+        for (var y = 0; y < rows; y++)
+            for (var x = 0; x < Cell; x++)
+                result[y, x] = source(pose, y, x);
+        return result;
     }
 }

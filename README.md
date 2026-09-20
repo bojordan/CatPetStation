@@ -4,9 +4,11 @@
 
 CatPetStation puts a little animated companion on your Windows desktop — it walks,
 climbs the edges of your screen, hangs from the top, naps, and can be picked up
-and flung around with the mouse. It ships with **Station Cat**, an original
-MIT-licensed pixel cat, and can import community pet packs — including packs made
-for the (now delisted) DPET : Desktop Pet Engine.
+and flung around with the mouse. It ships with a family of four original,
+MIT-licensed pixel cats — **Station Cat** (orange tabby), **Dusty** (grey
+tabby), **Domino** (tuxedo), and **Patches** (calico) — and can import
+community pet packs, including packs made for the (now delisted)
+DPET : Desktop Pet Engine.
 
 ![Station Cat sprite sheet](assets/pets/station-cat/cat.png)
 

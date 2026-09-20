@@ -22,14 +22,14 @@ jobs:
       - name: Test
         run: dotnet test tests/CatPetStation.Core.Tests --configuration Release --no-build --logger "console;verbosity=normal"
 
-      - name: Verify sprite sheet is reproducible
+      - name: Verify sprite sheets are reproducible
         shell: pwsh
         run: |
-          $before = (Get-FileHash assets/pets/station-cat/cat.png).Hash
+          $before = Get-ChildItem assets/pets -Recurse -File | Get-FileHash | Sort-Object Path
           dotnet run --project tools/SpriteGen --configuration Release
-          $after = (Get-FileHash assets/pets/station-cat/cat.png).Hash
-          if ($before -ne $after) {
-            Write-Error "assets/pets/station-cat is stale: re-run 'dotnet run --project tools/SpriteGen' and commit."
+          $after = Get-ChildItem assets/pets -Recurse -File | Get-FileHash | Sort-Object Path
+          if (Compare-Object $before $after -Property Path, Hash) {
+            Write-Error "assets/pets is stale: re-run 'dotnet run --project tools/SpriteGen' and commit."
           }
 
   release-build:
