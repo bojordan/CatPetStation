@@ -30,6 +30,11 @@ public readonly record struct SpriteFrame(string Animation, int FrameIndex, bool
 /// future Swift port) calls <see cref="Tick"/> every frame and draws whatever
 /// <see cref="CurrentFrame"/> says. Randomness is injected so tests are
 /// deterministic.
+///
+/// A pet stands either on the ground (the bottom of the work area) or on a
+/// <see cref="Ledge"/> — the top edge of someone else's window. Ledges are
+/// re-validated every tick: if the window slides gently the pet rides along,
+/// if it moves away or closes the pet falls to whatever is below.
 /// </summary>
 public sealed class PetEngine
 {
@@ -43,6 +48,12 @@ public sealed class PetEngine
     public const double ThrowDamping = 1.5;   // horizontal velocity decay per second while airborne
     public const double EdgeAttachDistance = 12;
 
+    /// <summary>Minimum share of the pet's width that must rest on a ledge to stand on it.</summary>
+    public const double MinLedgeFooting = 0.4;
+
+    /// <summary>How far a ledge may shift vertically between ticks and still carry the pet.</summary>
+    public const double LedgeFollowTolerance = 24;
+
     private readonly PetDefinition _pet;
     private readonly Random _random;
     private readonly string[] _customActions;
@@ -51,6 +62,7 @@ public sealed class PetEngine
     private double _animationTime;    // seconds since the current animation started
     private string _animation = KnownAnimations.Stand;
     private int _climbEdge;           // -1 = left edge, +1 = right edge
+    private bool _resumeSleepAfterLanding;
 
     public PetEngine(PetDefinition pet, double width, double height, Random? random = null)
     {
@@ -74,6 +86,9 @@ public sealed class PetEngine
     public int Facing { get; private set; } = 1;
 
     public PetActivity Activity { get; private set; }
+
+    /// <summary>The ledge currently under the pet's feet, or null when on the ground or airborne.</summary>
+    public Ledge? Support { get; private set; }
 
     /// <summary>Raised when the pet lands after a fall; the app can play a sound or particle here.</summary>
     public event Action? Landed;
@@ -110,28 +125,44 @@ public sealed class PetEngine
         }
     }
 
-    public void Tick(double dt, ScreenBounds bounds)
+    /// <summary>Convenience overload for a world with no ledges.</summary>
+    public void Tick(double dt, ScreenBounds bounds) => Tick(dt, new PetWorld(bounds));
+
+    public void Tick(double dt, in PetWorld world)
     {
         _animationTime += dt;
-        var ground = bounds.Bottom - Height;
+        var bounds = world.Bounds;
 
         switch (Activity)
         {
             case PetActivity.Idle:
             case PetActivity.Sleep:
-                if (Y < ground - 1) { StartFall(); break; }
+                if (!ValidateSupport(world)) break;
                 if (Activity == PetActivity.Idle && CountDown(dt)) ChooseNextGroundActivity(bounds);
                 break;
 
             case PetActivity.Action:
-                if (CountDown(dt)) SetActivity(PetActivity.Idle);
+            case PetActivity.Land:
+                if (!ValidateSupport(world)) break;
+                if (CountDown(dt))
+                {
+                    var wasLanding = Activity == PetActivity.Land;
+                    SetActivity(PetActivity.Idle);
+                    if (wasLanding && _resumeSleepAfterLanding)
+                    {
+                        _resumeSleepAfterLanding = false;
+                        SetSleeping(true);
+                    }
+                }
                 break;
 
             case PetActivity.Walk:
                 X += Facing * WalkSpeed * dt;
                 if (X <= bounds.Left) HitWall(bounds.Left, -1);
                 else if (X + Width >= bounds.Right) HitWall(bounds.Right - Width, +1);
-                if (Activity == PetActivity.Walk && CountDown(dt)) SetActivity(PetActivity.Idle);
+                if (Activity != PetActivity.Walk) break;
+                if (!ValidateSupport(world)) break; // strolled off the end of a ledge
+                if (CountDown(dt)) SetActivity(PetActivity.Idle);
                 break;
 
             case PetActivity.Climb:
@@ -160,24 +191,15 @@ public sealed class PetEngine
 
             case PetActivity.Jump:
             case PetActivity.Fall:
+                var previousBottom = Y + Height;
                 VelocityY = Math.Min(VelocityY + Gravity * dt, MaxFallSpeed);
                 VelocityX -= VelocityX * ThrowDamping * dt;
                 X = Math.Clamp(X + VelocityX * dt, bounds.Left, bounds.Right - Width);
                 Y += VelocityY * dt;
                 if (Activity == PetActivity.Jump && VelocityY >= 0)
                     SetAnimation(KnownAnimations.Fall);
-                if (Y >= ground)
-                {
-                    Y = ground;
-                    VelocityX = 0;
-                    VelocityY = 0;
-                    Landed?.Invoke();
-                    BeginLanding();
-                }
-                break;
-
-            case PetActivity.Land:
-                if (CountDown(dt)) SetActivity(PetActivity.Idle);
+                if (VelocityY >= 0)
+                    TryLand(world, previousBottom);
                 break;
 
             case PetActivity.Drag:
@@ -189,6 +211,7 @@ public sealed class PetEngine
     public void BeginDrag()
     {
         Activity = PetActivity.Drag;
+        Support = null;
         SetAnimation(KnownAnimations.Drag);
     }
 
@@ -214,7 +237,94 @@ public sealed class PetEngine
         {
             SetActivity(PetActivity.Idle);
         }
+        _resumeSleepAfterLanding = false;
     }
+
+    // ---- Support & landing ------------------------------------------------
+
+    /// <summary>
+    /// While standing, checks that the surface underfoot still exists. A ledge
+    /// that shifted a little carries the pet with it; one that moved away or
+    /// disappeared drops the pet into a fall. Returns false when a fall began.
+    /// </summary>
+    private bool ValidateSupport(in PetWorld world)
+    {
+        var ground = world.Bounds.Bottom - Height;
+
+        if (Support is null)
+        {
+            if (Y < ground - 1)
+            {
+                StartFallFromStanding();
+                return false;
+            }
+            Y = Math.Min(Y, ground); // work area may have grown upward (taskbar moved)
+            return true;
+        }
+
+        var feet = Y + Height;
+        Ledge? best = null;
+        var bestDistance = double.MaxValue;
+        foreach (var ledge in world.Ledges)
+        {
+            if (ledge.OverlapWidth(X, X + Width) < Width * MinLedgeFooting) continue;
+            var distance = Math.Abs(ledge.Y - feet);
+            if (distance <= LedgeFollowTolerance && distance < bestDistance)
+            {
+                best = ledge;
+                bestDistance = distance;
+            }
+        }
+
+        if (best is { } carried)
+        {
+            Support = carried;
+            Y = carried.Y - Height;
+            return true;
+        }
+
+        StartFallFromStanding();
+        return false;
+    }
+
+    /// <summary>
+    /// While falling, lands on the highest surface whose top the pet's feet
+    /// crossed this tick — a ledge with enough footing, or the ground.
+    /// </summary>
+    private void TryLand(in PetWorld world, double previousBottom)
+    {
+        var newBottom = Y + Height;
+        Ledge? landedOn = null;
+        var surfaceY = world.Bounds.Bottom;
+
+        foreach (var ledge in world.Ledges)
+        {
+            if (ledge.Y > surfaceY || ledge.Y < previousBottom - 1 || ledge.Y > newBottom) continue;
+            if (ledge.OverlapWidth(X, X + Width) < Width * MinLedgeFooting) continue;
+            if (ledge.Y <= surfaceY)
+            {
+                surfaceY = ledge.Y;
+                landedOn = ledge;
+            }
+        }
+
+        if (landedOn is null && newBottom < world.Bounds.Bottom) return; // still airborne
+
+        Support = landedOn;
+        Y = surfaceY - Height;
+        VelocityX = 0;
+        VelocityY = 0;
+        Landed?.Invoke();
+        BeginLanding();
+    }
+
+    private void StartFallFromStanding()
+    {
+        _resumeSleepAfterLanding = Activity == PetActivity.Sleep;
+        StartFall();
+    }
+
+    // ---- Activity selection -----------------------------------------------
 
     private void ChooseNextGroundActivity(ScreenBounds bounds)
     {
@@ -222,11 +332,11 @@ public sealed class PetEngine
 
         var nearLeft = X - bounds.Left < EdgeAttachDistance;
         var nearRight = bounds.Right - (X + Width) < EdgeAttachDistance;
-        var canClimb = _pet.Has(KnownAnimations.Climb) && (nearLeft || nearRight);
+        var canClimb = _pet.Has(KnownAnimations.Climb) && Support is null && (nearLeft || nearRight);
 
         if (canClimb && roll < 0.35)
         {
-            StartClimb(nearLeft ? -1 : +1, bounds);
+            StartClimb(nearLeft ? -1 : +1);
         }
         else if (roll < 0.45 && _customActions.Length > 0)
         {
@@ -257,17 +367,18 @@ public sealed class PetEngine
     private void HitWall(double clampedX, int edge)
     {
         X = clampedX;
-        if (_pet.Has(KnownAnimations.Climb) && _random.NextDouble() < 0.5)
-            StartClimb(edge, default);
+        if (_pet.Has(KnownAnimations.Climb) && Support is null && _random.NextDouble() < 0.5)
+            StartClimb(edge);
         else
             Facing = -edge; // turn around and keep walking
     }
 
-    private void StartClimb(int edge, ScreenBounds bounds)
+    private void StartClimb(int edge)
     {
         _climbEdge = edge;
         Facing = edge;
         Activity = PetActivity.Climb;
+        Support = null;
         _stateRemaining = 3 + _random.NextDouble() * 8;
         SetAnimation(KnownAnimations.Climb);
     }
@@ -285,6 +396,7 @@ public sealed class PetEngine
         VelocityY = JumpVelocity;
         VelocityX = Facing * 140;
         Activity = PetActivity.Jump;
+        Support = null;
         SetAnimation(KnownAnimations.Jump);
     }
 
@@ -300,6 +412,7 @@ public sealed class PetEngine
     private void StartFall()
     {
         Activity = PetActivity.Fall;
+        Support = null;
         SetAnimation(KnownAnimations.Fall);
     }
 
@@ -310,6 +423,11 @@ public sealed class PetEngine
         if (landingFrames <= 0)
         {
             SetActivity(PetActivity.Idle);
+            if (_resumeSleepAfterLanding)
+            {
+                _resumeSleepAfterLanding = false;
+                SetSleeping(true);
+            }
             return;
         }
         Activity = PetActivity.Land;

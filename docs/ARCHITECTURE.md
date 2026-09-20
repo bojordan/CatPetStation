@@ -69,6 +69,23 @@ Screen geometry is the primary monitor's work area (`SystemParameters.WorkArea`,
 in DIPs — the same space as `Window.Left/Top`, so no unit conversions leak into
 the engine). The ground is the top of the taskbar.
 
+### Window ledges
+
+Pets can also stand on **ledges** — the visible parts of other windows' top
+edges. `WindowLedgeProvider` (App layer) enumerates top-level windows ~5×/s,
+strictly read-only: `EnumWindows` + `DwmGetWindowAttribute` frame bounds,
+filtered for shell windows, cloaked windows, and the pet windows themselves,
+with the z-order used to subtract occluded parts of each edge. The result is a
+plain `IReadOnlyList<Ledge>` handed to the engine inside `PetWorld` each tick.
+
+The engine owns all ledge *semantics*: landing needs ≥40 % footing, a standing
+pet re-validates its support every tick (a ledge that drifted ≤24 DIPs carries
+the pet — so cats ride gently dragged windows — while a vanished or yanked
+ledge starts a fall), and a sleeping pet that loses its window falls, lands,
+and goes back to sleep. All of it is covered by deterministic tests in
+`PetEngineLedgeTests`; the tests feed synthetic ledges, so none of this needs a
+real window to verify.
+
 ## Persistence
 
 `%APPDATA%\CatPetStation\settings.json` (active pets, scale, nap state) and

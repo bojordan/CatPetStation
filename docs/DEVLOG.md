@@ -82,12 +82,34 @@ downloads locally; the repo stays 100 % original, MIT-licensed content.
 - WPF's image decoder throws `FileFormatException` (not `NotSupportedException`)
   for corrupt PNGs — the pack-load error handling has to catch both.
 
-## 4. What's deliberately left for contributors
+## 4. Window-ledge sitting (added post-v0.1.0)
+
+The Shimeji-signature feature, built the good-citizen way: the app *reads*
+window rectangles (`EnumWindows` + DWM frame bounds — never titles, contents,
+or input) and turns visible top edges into `Ledge` records the engine treats as
+standable surfaces. Design notes:
+
+- The engine grew a `PetWorld` (bounds + ledges) and a `Support` concept.
+  Standing pets re-validate their support every tick: a ledge that shifted
+  within 24 DIPs carries the pet (cats ride gently dragged windows!), a
+  vanished one starts a fall. Landing requires 40 % footing.
+- A test named `YankingTheWindowAwayDropsThePet` failed on first run because
+  the pet fell and **landed back on the same window at its new position** —
+  emergent behavior better than the spec, so the test was renamed and the
+  assertion inverted. Behavior engines earn their keep this way.
+- Occlusion is interval subtraction along each top edge using the z-order that
+  `EnumWindows` already returns; shell windows (Progman, WorkerW, tray) and
+  cloaked UWP windows are filtered out.
+- Ledges refresh at 5 Hz on the shared clock, not per pet; steady-state CPU
+  stayed at ~1 % of one core with one pet.
+- It's a tray toggle ("Pets can sit on windows"), on by default on Windows.
+  The macOS port must make it opt-in: reading other apps' window geometry
+  there requires the Screen Recording permission prompt.
+
+## 5. What's deliberately left for contributors
 
 - Multi-monitor roaming (engine already takes arbitrary bounds; the host just
   passes one work area today).
-- Window-ledge sitting (Shimeji-style) — needs Win32 window enumeration; keep
-  it read-only to stay a good citizen.
 - Fullscreen-app detection to auto-hide pets during games/presentations.
 - More Station Cat frames and more original pets — art PRs are the most
   welcome PRs.

@@ -53,12 +53,15 @@ public sealed class PetController : IDisposable
         Render();
     }
 
-    public void Tick(double dt)
+    public void Tick(double dt, in PetWorld world)
     {
-        var area = SystemParameters.WorkArea;
-        _engine.Tick(dt, new ScreenBounds(area.Left, area.Top, area.Right, area.Bottom));
+        _engine.Tick(dt, world);
         Render();
     }
+
+    /// <summary>Native handle, so the ledge provider can skip pet windows.</summary>
+    public nint WindowHandle =>
+        new System.Windows.Interop.WindowInteropHelper(_window).Handle;
 
     public void SetSleeping(bool sleeping)
     {

@@ -18,6 +18,9 @@ public sealed class AppSettings
 
     public bool AllAsleep { get; set; }
 
+    /// <summary>Whether pets may sit on the top edges of other windows (read-only window tracking).</summary>
+    public bool WindowLedges { get; set; } = true;
+
     [JsonIgnore]
     public static string DataDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CatPetStation");

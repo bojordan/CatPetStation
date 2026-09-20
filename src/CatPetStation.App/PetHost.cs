@@ -18,9 +18,14 @@ public sealed class PetHost : IDisposable
     private static readonly TimeSpan ActiveInterval = TimeSpan.FromMilliseconds(33);
     private static readonly TimeSpan NapInterval = TimeSpan.FromMilliseconds(500);
 
+    private static readonly TimeSpan LedgeRefreshInterval = TimeSpan.FromMilliseconds(200);
+
     private readonly DispatcherTimer _clock;
     private readonly List<PetController> _pets = [];
+    private readonly WindowLedgeProvider _ledgeProvider = new();
+    private IReadOnlyList<Ledge> _ledges = [];
     private DateTime _lastTick = DateTime.UtcNow;
+    private DateTime _lastLedgeRefresh = DateTime.MinValue;
 
     public AppSettings Settings { get; }
 
@@ -166,13 +171,33 @@ public sealed class PetHost : IDisposable
         }
     }
 
+    public void SetWindowLedges(bool enabled)
+    {
+        Settings.WindowLedges = enabled;
+        Settings.Save();
+        if (!enabled) _ledges = [];
+    }
+
     private void OnTick(object? sender, EventArgs e)
     {
         var now = DateTime.UtcNow;
         var dt = Math.Min((now - _lastTick).TotalSeconds, 0.1); // clamp hitches
         _lastTick = now;
+
+        var area = SystemParameters.WorkArea;
+        var bounds = new ScreenBounds(area.Left, area.Top, area.Right, area.Bottom);
+
+        if (Settings.WindowLedges && _pets.Count > 0 &&
+            now - _lastLedgeRefresh >= LedgeRefreshInterval)
+        {
+            _lastLedgeRefresh = now;
+            var petWindows = _pets.Select(p => p.WindowHandle).ToHashSet();
+            _ledges = _ledgeProvider.GetLedges(petWindows, bounds);
+        }
+
+        var world = new PetWorld(bounds, Settings.WindowLedges ? _ledges : null);
         foreach (var pet in _pets)
-            pet.Tick(dt);
+            pet.Tick(dt, world);
     }
 
     private void SaveActivePets()

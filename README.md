@@ -30,6 +30,10 @@ be the *good citizen* of this space:
 
 - 🚶 Full behavior set: idle, walk, **climb screen edges**, **hang from the top**,
   jump, fall with real gravity, drag & **fling** with the mouse, nap.
+- 🪟 **Sits on your windows** — pets land on and stroll along window title bars,
+  ride a gently dragged window, and tumble off when you yank it away. Strictly
+  read-only: the app observes window rectangles and never touches, moves, or
+  reads the contents of other windows. Toggleable from the tray.
 - 🐈 Multiple pets at once, mix and match packs.
 - 📦 **Pack import** with a DPET-compatible manifest reader — point it at a
   community `.zip` and only the safe parts come through.

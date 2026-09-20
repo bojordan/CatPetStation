@@ -45,6 +45,19 @@ tests (the C# tests are the spec — port them first):
   same fall-frame conventions. Inject the RNG (`RandomNumberGenerator`
   protocol) for deterministic tests.
 
+## Window-ledge sitting
+
+The Windows app lets pets sit on other windows' top edges via read-only
+geometry (`WindowLedgeProvider` → `PetWorld.Ledges`; the engine logic and its
+tests port as-is). On macOS the equivalent is `CGWindowListCopyWindowInfo`
+(`kCGWindowListOptionOnScreenOnly`, reading only `kCGWindowBounds` + layer for
+z-order/occlusion) — but on modern macOS reading other apps' window bounds
+requires the **Screen Recording permission**, which is a scary prompt for a pet
+app. Ship the feature **off by default** here, behind an explanatory opt-in
+("macOS asks for Screen Recording permission because window *positions* count
+as screen information; CatPetStation reads geometry only — never pixels or
+titles"). Everything else works without the permission.
+
 ## Safety parity checklist
 
 - [ ] Sandboxed app (App Sandbox on, user-selected-file read for zip import)

@@ -64,6 +64,14 @@ public sealed class TrayIcon : IDisposable
         }
         menu.Items.Add(size);
 
+        var ledges = new WinForms.ToolStripMenuItem("Pets can sit on windows")
+        {
+            Checked = _host.Settings.WindowLedges,
+            ToolTipText = "Reads window positions only — never touches other windows.",
+        };
+        ledges.Click += (_, _) => _host.SetWindowLedges(!_host.Settings.WindowLedges);
+        menu.Items.Add(ledges);
+
         var nap = new WinForms.ToolStripMenuItem("Everyone nap") { Checked = _host.Settings.AllAsleep };
         nap.Click += (_, _) => _host.SetAllSleeping(!_host.Settings.AllAsleep);
         menu.Items.Add(nap);
